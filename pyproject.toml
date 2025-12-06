@@ -16,7 +16,7 @@ dependencies = [
 Homepage = "https://github.com/c0ffee0wl/llm-linux-setup"
 
 [project.entry-points.llm]
-google_search = "llm_tools_google_search"
+search_google = "llm_tools_google_search"
 
 [build-system]
 requires = ["setuptools>=61.0"]

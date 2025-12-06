@@ -1,7 +1,7 @@
 """
 LLM tools for Google Search using Vertex/Gemini with Google Search grounding.
 
-Provides a google_search tool that leverages Vertex AI or Gemini's google_search
+Provides a search_google tool that leverages Vertex AI or Gemini's google_search
 option to perform web searches, making search available to any LLM model.
 """
 import json
@@ -104,7 +104,7 @@ def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
     return resolved_sources
 
 
-def google_search(query: str, max_results: int = 7) -> str:
+def search_google(query: str, max_results: int = 7) -> str:
     """
     Search the web using Google Search. ONLY use when explicitly requested.
 
@@ -227,4 +227,4 @@ When citing information, mention the source name inline."""
 @llm.hookimpl
 def register_tools(register):
     """Register Google Search tool."""
-    register(google_search)
+    register(search_google)
