@@ -56,7 +56,7 @@ def _resolve_redirect_url(redirect_url: str, timeout: float = 5.0) -> Tuple[str,
     try:
         request = urllib.request.Request(
             redirect_url,
-            headers={'User-Agent': 'llm-tools-google-search/0.1'}
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}
         )
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return (response.geturl(), None)
@@ -104,7 +104,7 @@ def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
     return resolved_sources
 
 
-def google_search(query: str, max_results: int = 5) -> str:
+def google_search(query: str, max_results: int = 10) -> str:
     """
     Search the web using Google Search. ONLY use when explicitly requested.
 
