@@ -104,7 +104,7 @@ def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
     return resolved_sources
 
 
-def google_search(query: str, max_results: int = 10) -> str:
+def google_search(query: str, max_results: int = 7) -> str:
     """
     Search the web using Google Search. ONLY use when explicitly requested.
 
