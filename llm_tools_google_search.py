@@ -106,23 +106,14 @@ def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
 
 def search_google(query: str, max_results: int = 7) -> str:
     """
-    Search the web using Google Search. ONLY use when explicitly requested.
-
-    IMPORTANT: Do NOT use this tool unless the user explicitly asks to:
-    - "search for...", "look up...", "find online...", "google..."
-    - "what's the latest...", "check the web for..."
-
-    Do NOT use for:
-    - General questions you can answer from training data
-    - Topics where your knowledge is likely current enough
-    - Anything the user didn't explicitly ask to search for
+    Search the web using Google Search via Vertex/Gemini grounding.
 
     Args:
         query: The search query - be specific for better results
-        max_results: Maximum number of source URLs to return (default: 5)
+        max_results: Maximum number of source URLs to return (default: 7)
 
     Returns:
-        JSON with search results including synthesized answer and source URLs
+        JSON with synthesized answer, source URLs, and model used
     """
     # Craft prompt that encourages grounded search results
     search_prompt = f"""Search the web for: {query}
