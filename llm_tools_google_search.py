@@ -108,12 +108,17 @@ def search_google(query: str, max_results: int = 7) -> str:
     """
     Search the web using Google Search via Vertex/Gemini grounding.
 
+    Performs a live web search and synthesizes results into a coherent answer with
+    source citations. Requires Vertex AI or Gemini API to be configured. The search
+    uses Google's grounding feature to retrieve current information from the web.
+
     Args:
         query: The search query - be specific for better results
         max_results: Maximum number of source URLs to return (default: 7)
 
     Returns:
-        JSON with synthesized answer, source URLs, and model used
+        JSON with 'results' (synthesized answer), 'sources' (list of URLs with titles),
+        'model' (provider used), and 'error' (if search failed)
     """
     # Craft prompt that encourages grounded search results
     search_prompt = f"""Search the web for: {query}
