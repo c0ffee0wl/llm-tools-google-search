@@ -4,7 +4,6 @@ LLM tools for Google Search using Vertex/Gemini with Google Search grounding.
 Provides a search_google tool that leverages Vertex AI or Gemini's google_search
 option to perform web searches, making search available to any LLM model.
 """
-import json
 import urllib.error
 import urllib.request
 from typing import Optional, Tuple
@@ -104,6 +103,31 @@ def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
     return resolved_sources
 
 
+def _format_sources_markdown(sources: list) -> str:
+    """
+    Format resolved sources as markdown links.
+
+    Args:
+        sources: List of source dicts with 'title', 'uri', and optional 'error'
+
+    Returns:
+        Markdown formatted string with sources as bullet points
+    """
+    if not sources:
+        return ""
+
+    lines = ["Sources:"]
+    for source in sources:
+        title = source.get('title') or 'Untitled'
+        uri = source.get('uri', '')
+        if uri:
+            lines.append(f"- [{title}]({uri})")
+        elif title:
+            lines.append(f"- {title}")
+
+    return "\n".join(lines)
+
+
 def search_google(query: str, max_results: int = 7) -> str:
     """
     Search the web using Google Search via Vertex/Gemini grounding.
@@ -117,8 +141,8 @@ def search_google(query: str, max_results: int = 7) -> str:
         max_results: Maximum number of source URLs to return (default: 7)
 
     Returns:
-        JSON with 'results' (synthesized answer), 'sources' (list of URLs with titles),
-        'model' (provider used), and 'error' (if search failed)
+        Markdown formatted response with synthesized answer followed by a Sources
+        section containing links to the web pages used for grounding.
     """
     # Craft prompt that encourages grounded search results
     search_prompt = f"""Search the web for: {query}
@@ -183,12 +207,11 @@ When citing information, mention the source name inline."""
             # Resolve redirect URLs before returning
             resolved_sources = _resolve_sources(sources[:max_results])
 
-            return json.dumps({
-                "query": query,
-                "results": result_text,
-                "sources": resolved_sources,
-                "model": model.model_id
-            }, indent=2)
+            # Format as markdown with sources
+            sources_md = _format_sources_markdown(resolved_sources)
+            if sources_md:
+                return f"{result_text}\n\n{sources_md}"
+            return result_text
 
         except Exception as e:
             error_msg = str(e)
@@ -198,26 +221,13 @@ When citing information, mention the source name inline."""
                 continue
             else:
                 # Actual API/search error - return it
-                return json.dumps({
-                    "error": error_msg,
-                    "query": query,
-                    "results": "",
-                    "sources": [],
-                    "model": model_id
-                }, indent=2)
+                return f"Error: {error_msg}"
 
     # All models failed
     if not tried_models:
-        error = "No search provider installed. Run: install-llm-tools.sh --gemini"
+        return "Error: No search provider installed. Run: install-llm-tools.sh --gemini"
     else:
-        error = f"No configured provider. Tried: {', '.join(tried_models)}. Last error: {last_error}"
-
-    return json.dumps({
-        "error": error,
-        "query": query,
-        "results": "",
-        "sources": []
-    }, indent=2)
+        return f"Error: No configured provider. Tried: {', '.join(tried_models)}. Last error: {last_error}"
 
 
 @llm.hookimpl
