@@ -38,22 +38,22 @@ def _is_config_error(error_msg: str) -> bool:
     return any(pattern in error_lower for pattern in CONFIG_ERROR_PATTERNS)
 
 
-def _get_language_name(code: str) -> str:
+def _get_language_name(code: str) -> Optional[str]:
     """Convert ISO 639-1 language code to full language name.
 
     Args:
         code: ISO 639-1 language code (e.g., "en", "de", "fr")
 
     Returns:
-        Full language name (e.g., "English", "German", "French").
-        Falls back to "English" if code is invalid or empty.
+        Full language name (e.g., "English", "German", "French"),
+        or None if the code is invalid.
     """
     if not code or not code.strip():
-        return "English"
+        return None
     try:
         return Lang(code.lower().strip()).name
     except InvalidLanguageValue:
-        return "English"
+        return None
 
 
 def _resolve_redirect_url(redirect_url: str, timeout: float = 5.0) -> Tuple[str, Optional[str]]:
@@ -149,7 +149,7 @@ def _format_sources_markdown(sources: list) -> str:
     return "\n".join(lines)
 
 
-def search_google(query: str, max_results: int = 7, language: str = "en") -> str:
+def search_google(query: str, language: str, max_results: int = 7) -> str:
     """
     Search the web using Google Search via Vertex/Gemini grounding.
 
@@ -159,14 +159,16 @@ def search_google(query: str, max_results: int = 7, language: str = "en") -> str
 
     Args:
         query: The search query - be specific for better results
+        language: ISO 639-1 language code for the response (e.g., "en", "de", "fr")
         max_results: Maximum number of source URLs to return (default: 7)
-        language: ISO 639-1 language code for the response (default: "en" for English)
 
     Returns:
         Markdown formatted response with synthesized answer followed by a Sources
         section containing links to the web pages used for grounding.
     """
     language_name = _get_language_name(language)
+    if not language_name:
+        return f"Error: invalid language code '{language}'. Use ISO 639-1 codes (e.g., 'en', 'de', 'fr')"
     today = date.today()
 
     # Craft prompt that encourages grounded search results
