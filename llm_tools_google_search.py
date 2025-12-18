@@ -6,9 +6,12 @@ option to perform web searches, making search available to any LLM model.
 """
 import urllib.error
 import urllib.request
+from datetime import date
 from typing import Optional, Tuple
 
 import llm
+from iso639 import Lang
+from iso639.exceptions import InvalidLanguageValue
 
 
 # Model priority: Vertex first (enterprise), then standard Gemini API
@@ -33,6 +36,24 @@ def _is_config_error(error_msg: str) -> bool:
     """Check if error indicates missing configuration vs actual API failure."""
     error_lower = error_msg.lower()
     return any(pattern in error_lower for pattern in CONFIG_ERROR_PATTERNS)
+
+
+def _get_language_name(code: str) -> str:
+    """Convert ISO 639-1 language code to full language name.
+
+    Args:
+        code: ISO 639-1 language code (e.g., "en", "de", "fr")
+
+    Returns:
+        Full language name (e.g., "English", "German", "French").
+        Falls back to "English" if code is invalid or empty.
+    """
+    if not code or not code.strip():
+        return "English"
+    try:
+        return Lang(code.lower().strip()).name
+    except InvalidLanguageValue:
+        return "English"
 
 
 def _resolve_redirect_url(redirect_url: str, timeout: float = 5.0) -> Tuple[str, Optional[str]]:
@@ -128,7 +149,7 @@ def _format_sources_markdown(sources: list) -> str:
     return "\n".join(lines)
 
 
-def search_google(query: str, max_results: int = 7) -> str:
+def search_google(query: str, max_results: int = 7, language: str = "en") -> str:
     """
     Search the web using Google Search via Vertex/Gemini grounding.
 
@@ -139,17 +160,26 @@ def search_google(query: str, max_results: int = 7) -> str:
     Args:
         query: The search query - be specific for better results
         max_results: Maximum number of source URLs to return (default: 7)
+        language: ISO 639-1 language code for the response (default: "en" for English)
 
     Returns:
         Markdown formatted response with synthesized answer followed by a Sources
         section containing links to the web pages used for grounding.
     """
+    language_name = _get_language_name(language)
+    today = date.today()
+
     # Craft prompt that encourages grounded search results
-    search_prompt = f"""Search the web for: {query}
+    search_prompt = f"""Today's date: {today.isoformat()}
+
+Search the web for: {query}
 
 Provide a factual, comprehensive answer based on current web search results.
 Include specific facts, numbers, and dates where relevant.
-When citing information, mention the source name inline."""
+When citing information, mention the source name inline.
+Remember it is {today.year} this year.
+
+You MUST respond in {language_name}."""
 
     last_error = None
     tried_models = []

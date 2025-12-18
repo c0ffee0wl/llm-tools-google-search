@@ -9,7 +9,8 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
 dependencies = [
-    "llm"
+    "llm",
+    "iso639-lang",
 ]
 
 [project.urls]
