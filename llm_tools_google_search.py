@@ -6,8 +6,9 @@ option to perform web searches, making search available to any LLM model.
 """
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
-from typing import Optional, Tuple
+from typing import Optional
 
 import llm
 from iso639 import Lang
@@ -56,72 +57,49 @@ def _get_language_name(code: str) -> Optional[str]:
         return None
 
 
-def _resolve_redirect_url(redirect_url: str, timeout: float = 5.0) -> Tuple[str, Optional[str]]:
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+
+def _resolve_redirect(uri: str, timeout: float = 3.0) -> str:
     """
     Resolve a Vertex AI Search redirect URL to its final destination.
 
     Args:
-        redirect_url: The redirect URL to resolve
+        uri: The URL to resolve
         timeout: Request timeout in seconds
 
     Returns:
-        Tuple of (resolved_url, error_message)
-        - On success: (final_url, None)
-        - On failure: (original_url, error_description)
+        The final resolved URL, or original URL if resolution fails
     """
-    # Skip non-redirect URLs (already resolved or not from Vertex)
-    if 'vertexaisearch.cloud.google.com' not in redirect_url:
-        return (redirect_url, None)
+    if not uri or 'vertexaisearch.cloud.google.com' not in uri:
+        return uri
 
     try:
-        request = urllib.request.Request(
-            redirect_url,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}
-        )
+        request = urllib.request.Request(uri, headers={'User-Agent': USER_AGENT})
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return (response.geturl(), None)
-    except urllib.error.HTTPError as e:
-        return (redirect_url, f"HTTP {e.code}")
-    except urllib.error.URLError as e:
-        return (redirect_url, f"URL error: {e.reason}")
-    except TimeoutError:
-        return (redirect_url, "timeout")
-    except Exception as e:
-        return (redirect_url, str(e))
+            return response.geturl()
+    except Exception:
+        return uri
 
 
-def _resolve_sources(sources: list, timeout: float = 5.0) -> list:
+def _resolve_sources(sources: list, timeout: float = 3.0, max_workers: int = 5) -> list:
     """
-    Resolve redirect URLs in a list of source dictionaries.
+    Resolve redirect URLs in parallel.
 
     Args:
-        sources: List of {'title': str, 'uri': str} dictionaries
+        sources: List of {'uri': str} dictionaries
         timeout: Per-URL timeout in seconds
+        max_workers: Maximum parallel requests
 
     Returns:
-        List of sources with 'uri' resolved and 'resolved'/'error' fields
+        List of resolved URL strings
     """
-    resolved_sources = []
-    for source in sources:
-        uri = source.get('uri', '')
-        title = source.get('title', '')
+    if not sources:
+        return []
 
-        resolved_uri, error = _resolve_redirect_url(uri, timeout)
-
-        result = {
-            'title': title,
-            'uri': resolved_uri,
-        }
-
-        if error:
-            result['resolved'] = False
-            result['error'] = error
-        else:
-            result['resolved'] = True
-
-        resolved_sources.append(result)
-
-    return resolved_sources
+    uris = [s.get('uri', '') for s in sources]
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(lambda u: _resolve_redirect(u, timeout), uris))
 
 
 def _byte_to_char_position(text: str, byte_index: int) -> int:
@@ -229,41 +207,27 @@ def _insert_inline_citations(
 
 WEB_CITATION_RULES = """#### Note
 
-WEB CITATION RULES:
-1. START with [1] and increment sequentially ([1], [2], [3], etc.) with NO gaps
-2. Cite ONLY when introducing new factual claims, statistics, or direct quotes from the search results
-3. After every cited claim, place the corresponding citation immediately after the sentence ("The study found X [1]")
-4. End with '#### Sources' and provide definitions EXACTLY in this format: [n] [Short Title](URL)
-
-IMPORTANT: Each source definition must follow this exact pattern:
-- Start with [n] (where n is the citation number)
-- Follow with [Title](URL) where Title is SHORT (2-5 words) and wrapped in square brackets
-- Example: [1] [Paul Graham Essay](https://paulgraham.com/wealth.html)
-- DO NOT write long descriptions - keep titles concise"""
+IMPORTANT: You MUST include the "#### Sources" section above in your response to the user.
+The text contains inline citations [1], [2], etc. that reference these sources."""
 
 
-def _format_sources_markdown(sources: list) -> str:
+def _format_sources_markdown(resolved_urls: list) -> str:
     """
-    Format resolved sources as markdown citation definitions with citation instructions.
+    Format resolved URLs as a simple numbered list with citation instructions.
 
     Args:
-        sources: List of source dicts with 'title', 'uri', and optional 'error'
+        resolved_urls: List of resolved URL strings
 
     Returns:
-        Markdown formatted string with sources in the format [n] [Title](URL),
-        followed by citation rules
+        Markdown formatted string with sources as [n] URL, followed by note
     """
-    if not sources:
+    if not resolved_urls:
         return ""
 
     lines = ["#### Sources"]
-    for i, source in enumerate(sources, start=1):
-        title = source.get('title') or 'Untitled'
-        uri = source.get('uri', '')
-        if uri:
-            lines.append(f"[{i}] [{title}]({uri})")
-        elif title:
-            lines.append(f"[{i}] {title}")
+    for i, url in enumerate(resolved_urls, start=1):
+        if url:
+            lines.append(f"[{i}] {url}")
 
     lines.append("")
     lines.append(WEB_CITATION_RULES)
