@@ -168,7 +168,7 @@ def _insert_inline_citations(
 
         # Build citation string with deduplicated, sorted source numbers
         source_nums = sorted(set(source_nums))
-        citation = ''.join(f'[{n}]' for n in source_nums)
+        citation = ' ' + ''.join(f'[{n}]' for n in source_nums)
 
         # Convert byte position to character position
         try:
