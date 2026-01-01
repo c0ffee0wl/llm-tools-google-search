@@ -224,12 +224,12 @@ def _format_sources_markdown(resolved_urls: list) -> str:
     if not resolved_urls:
         return ""
 
-    lines = ["#### Sources"]
+    lines = ["#### Sources", ""]
     for i, url in enumerate(resolved_urls, start=1):
         if url:
             lines.append(f"[{i}] {url}")
+            lines.append("")  # Blank line after each entry
 
-    lines.append("")
     lines.append(WEB_CITATION_RULES)
 
     return "\n".join(lines)
