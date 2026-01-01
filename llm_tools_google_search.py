@@ -207,8 +207,7 @@ def _insert_inline_citations(
 
 WEB_CITATION_RULES = """#### Note
 
-IMPORTANT: You MUST include the "#### Sources" section above in your response to the user.
-The text contains inline citations [1], [2], etc. that reference these sources."""
+IMPORTANT: The text contains inline citations [1], [2], etc. You MUST preserve these inline citations in your response AND include the "#### Sources" section above so users can verify the information."""
 
 
 def _format_sources_markdown(resolved_urls: list) -> str:
