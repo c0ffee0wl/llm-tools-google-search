@@ -60,7 +60,7 @@ def _get_language_name(code: str) -> Optional[str]:
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 
-def _resolve_redirect(uri: str, timeout: float = 3.0) -> str:
+def _resolve_redirect(uri: str, timeout: float = 5.0) -> str:
     """
     Resolve a Vertex AI Search redirect URL to its final destination.
 
@@ -82,24 +82,30 @@ def _resolve_redirect(uri: str, timeout: float = 3.0) -> str:
         return uri
 
 
-def _resolve_sources(sources: list, timeout: float = 3.0, max_workers: int = 5) -> list:
+def _resolve_sources(sources: list, timeout: float = 5.0, max_workers: int = 5) -> list:
     """
-    Resolve redirect URLs in parallel.
+    Resolve redirect URLs in parallel while preserving titles.
 
     Args:
-        sources: List of {'uri': str} dictionaries
+        sources: List of {'uri': str, 'title': str} dictionaries
         timeout: Per-URL timeout in seconds
         max_workers: Maximum parallel requests
 
     Returns:
-        List of resolved URL strings
+        List of {'uri': str, 'title': str} dictionaries with resolved URLs
     """
     if not sources:
         return []
 
     uris = [s.get('uri', '') for s in sources]
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        return list(executor.map(lambda u: _resolve_redirect(u, timeout), uris))
+        resolved_uris = list(executor.map(lambda u: _resolve_redirect(u, timeout), uris))
+
+    # Combine resolved URIs with original titles
+    return [
+        {'uri': resolved_uri, 'title': source.get('title', '')}
+        for resolved_uri, source in zip(resolved_uris, sources)
+    ]
 
 
 def _byte_to_char_position(text: str, byte_index: int) -> int:
@@ -207,27 +213,37 @@ def _insert_inline_citations(
 
 WEB_CITATION_RULES = """#### Note
 
-IMPORTANT: Do not display this note to the user. The text contains inline citations [1], [2], etc. You MUST preserve these inline citations in your response AND include the "#### Sources" section above so users can verify the information."""
+IMPORTANT: Do not display this note to the user. The text contains inline citations [1], [2], etc. You MUST:
+1. Preserve all inline citations [1], [2], etc. in your response text
+2. Include the "#### Sources" section above with all markdown hyperlinks intact (format: [n] [Title](URL))
+3. Keep the source links as clickable markdown hyperlinks - do NOT convert them to plain URLs"""
 
 
-def _format_sources_markdown(resolved_urls: list, include_note: bool = True) -> str:
+def _format_sources_markdown(resolved_sources: list, include_note: bool = True) -> str:
     """
-    Format resolved URLs as a simple numbered list with optional citation instructions.
+    Format resolved sources as a numbered list of markdown hyperlinks.
 
     Args:
-        resolved_urls: List of resolved URL strings
+        resolved_sources: List of {'uri': str, 'title': str} dictionaries
         include_note: If True, append citation rules note at the end
 
     Returns:
-        Markdown formatted string with sources as [n] URL, optionally followed by note
+        Markdown formatted string with sources as [n] [Title](URL), optionally followed by note
     """
-    if not resolved_urls:
+    if not resolved_sources:
         return ""
 
     lines = ["#### Sources", ""]
-    for i, url in enumerate(resolved_urls, start=1):
-        if url:
-            lines.append(f"[{i}] {url}")
+    for i, source in enumerate(resolved_sources, start=1):
+        uri = source.get('uri', '')
+        title = source.get('title', '')
+        if uri:
+            if title:
+                # Format as markdown hyperlink: [n] [Title](URL)
+                lines.append(f"[{i}] [{title}]({uri})")
+            else:
+                # Fallback to plain URL if no title
+                lines.append(f"[{i}] {uri}")
             lines.append("")  # Blank line after each entry
 
     if include_note:
