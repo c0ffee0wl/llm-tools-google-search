@@ -207,18 +207,19 @@ def _insert_inline_citations(
 
 WEB_CITATION_RULES = """#### Note
 
-IMPORTANT: The text contains inline citations [1], [2], etc. You MUST preserve these inline citations in your response AND include the "#### Sources" section above so users can verify the information."""
+IMPORTANT: Do not display this note to the user. The text contains inline citations [1], [2], etc. You MUST preserve these inline citations in your response AND include the "#### Sources" section above so users can verify the information."""
 
 
-def _format_sources_markdown(resolved_urls: list) -> str:
+def _format_sources_markdown(resolved_urls: list, include_note: bool = True) -> str:
     """
-    Format resolved URLs as a simple numbered list with citation instructions.
+    Format resolved URLs as a simple numbered list with optional citation instructions.
 
     Args:
         resolved_urls: List of resolved URL strings
+        include_note: If True, append citation rules note at the end
 
     Returns:
-        Markdown formatted string with sources as [n] URL, followed by note
+        Markdown formatted string with sources as [n] URL, optionally followed by note
     """
     if not resolved_urls:
         return ""
@@ -229,12 +230,13 @@ def _format_sources_markdown(resolved_urls: list) -> str:
             lines.append(f"[{i}] {url}")
             lines.append("")  # Blank line after each entry
 
-    lines.append(WEB_CITATION_RULES)
+    if include_note:
+        lines.append(WEB_CITATION_RULES)
 
     return "\n".join(lines)
 
 
-def search_google(query: str, language: str, max_results: int = 7) -> str:
+def search_google(query: str, language: str, max_results: int = 7, sources: bool = True) -> str:
     """
     Search the web using Google Search via Vertex/Gemini grounding.
 
@@ -246,6 +248,9 @@ def search_google(query: str, language: str, max_results: int = 7) -> str:
         query: The search query - be specific for better results
         language: ISO 639-1 language code for the response (e.g., "en", "de", "fr")
         max_results: Maximum number of source URLs to return (default: 7)
+        sources: If True (default), include inline citations [1], [2] in the text.
+                 If False, return response without inline citations but still include
+                 the Sources section at the end.
 
     Returns:
         Markdown formatted response with synthesized answer followed by a Sources
@@ -291,7 +296,7 @@ You MUST respond in {language_name}."""
             result_text = response.text()
 
             # Extract grounding metadata if available
-            sources = []
+            source_list = []
             chunk_to_source = {}
             grounding_supports = []
             try:
@@ -307,21 +312,21 @@ You MUST respond in {language_name}."""
                                     'title': web_info.get('title', ''),
                                     'uri': web_info.get('uri', '')
                                 }
-                                if source not in sources:
-                                    sources.append(source)
-                                    chunk_to_source[chunk_idx] = len(sources)  # 1-indexed
+                                if source not in source_list:
+                                    source_list.append(source)
+                                    chunk_to_source[chunk_idx] = len(source_list)  # 1-indexed
                                 else:
                                     # Duplicate source - map to existing
-                                    chunk_to_source[chunk_idx] = sources.index(source) + 1
+                                    chunk_to_source[chunk_idx] = source_list.index(source) + 1
                         # Extract groundingSupports for inline citations
                         grounding_supports.extend(grounding.get('groundingSupports', []))
                         # Check searchEntryPoint for search suggestions
                         search_entry = grounding.get('searchEntryPoint', {})
-                        if search_entry and not sources:
+                        if search_entry and not source_list:
                             # Fallback: use rendered content URL if no other sources
                             rendered = search_entry.get('renderedContent', '')
                             if rendered:
-                                sources.append({
+                                source_list.append({
                                     'title': 'Google Search',
                                     'uri': f'https://www.google.com/search?q={query.replace(" ", "+")}'
                                 })
@@ -330,19 +335,22 @@ You MUST respond in {language_name}."""
                 pass
 
             # Apply max_results limit and filter mapping
-            sources = sources[:max_results]
+            source_list = source_list[:max_results]
             chunk_to_source = {k: v for k, v in chunk_to_source.items() if v <= max_results}
 
-            # Insert inline citations into result text
-            text_with_citations = _insert_inline_citations(
-                result_text, grounding_supports, chunk_to_source
-            )
+            # Insert inline citations into result text (if sources=True)
+            if sources:
+                text_with_citations = _insert_inline_citations(
+                    result_text, grounding_supports, chunk_to_source
+                )
+            else:
+                text_with_citations = result_text
 
             # Resolve redirect URLs before returning
-            resolved_sources = _resolve_sources(sources)
+            resolved_sources = _resolve_sources(source_list)
 
             # Format as markdown with sources
-            sources_md = _format_sources_markdown(resolved_sources)
+            sources_md = _format_sources_markdown(resolved_sources, include_note=sources)
             if sources_md:
                 return f"{text_with_citations}\n\n{sources_md}"
             return text_with_citations
