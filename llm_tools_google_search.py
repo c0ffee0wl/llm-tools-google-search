@@ -229,7 +229,6 @@ Example of required response format:
 #### Sources
 
 [1] [Document Title](https://...)
-
 [2] [Another Title](https://...)
 ```
 
@@ -262,7 +261,6 @@ def _format_sources_markdown(resolved_sources: list, include_note: bool = True) 
             else:
                 # Fallback to plain URL if no title
                 lines.append(f"[{i}] {uri}")
-            lines.append("")  # Blank line after each entry
 
     if include_note:
         lines.append(WEB_CITATION_RULES)
